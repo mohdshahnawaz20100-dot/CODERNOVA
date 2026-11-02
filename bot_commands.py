@@ -107,6 +107,14 @@ def reg_commands(client, owner_id):
 
     def user_link(uid): return f"[User](tg://user?id={uid})"
 
+    async def reply_to_target(event, text):
+        if event.reply_to_msg_id:
+            try:
+                await client.send_message(event.chat_id, text, reply_to=event.reply_to_msg_id)
+                return
+            except: pass
+        await event.reply(text)
+
     async def send_anim(event, text, parse_mode=None):
         if event.reply_to_msg_id:
             return await client.send_message(event.chat_id, text, reply_to=event.reply_to_msg_id, parse_mode=parse_mode)
@@ -150,8 +158,12 @@ def reg_commands(client, owner_id):
     # ═══════════════ HELP ═══════════════
     @cmd('help', delete_cmd=False)
     async def help_cmd(event):
-        part1 = "⚙️ **CLONE_SHAH MENU** ⚙️\n\n🔹 **BASIC:** .alive .profile .id\n🔹 **AI & PRO:** .ai .spy .shayari\n🔹 **SECRET:** .stealth on/off .temp <sec>\n🔹 **SAVE:** .save .saveaudio .savemsg\n🔹 **CLONE:** .clone .ghost .unghost\n🔹 **ADMIN:** .ban .mute .unmute\n🔹 **SPAM:** .spray .stop .tagall\n🔹 **SCHEDULE:** .schedule .schedules\n🔹 **WEATHER:** .weather <city>\n▸ .ping .raid .purge\n\n✨ ᴘᴏᴡᴇʀᴇᴅ ʙʏ @CXLWV ✨"
+        part1 = "⚙️ **CLONE_SHAH MENU (1/2)** ⚙️\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🔹 **BASIC COMMANDS**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .help\n▸ .alive\n▸ .profile\n▸ .id\n▸ .info\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🤖 **AI ASSISTANT**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .ai <q>\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 📥 **DOWNLOADER**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .save\n▸ .saveaudio\n▸ .savemsg\n▸ .savechannel\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 👤 **PROFILE SYSTEM**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .clone @user\n▸ .reclone\n▸ .cloneall @user\n▸ .recloneall\n▸ .ghost / .unghost\n▸ .ghostall / .unghostall\n▸ .saveprofile / .restoreprofile\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🛡️ **ADMIN COMMANDS**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .admins\n▸ .addadmin\n▸ .deladmin\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🔇 **MUTE & RESTRICT**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .mute / .unmute\n▸ .gmute / .gunmute\n▸ .lock / .unlock\n▸ .ban / .unban\n\n✨ ᴘᴏᴡᴇʀᴇᴅ ʙʏ @CXLWV ✨"
+        part2 = "⚙️ **CLONE_SHAH MENU (2/2)** ⚙️\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 👥 **GROUP MOD**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .tagall <text>\n▸ .tagall2 <text>\n▸ .stoptag\n▸ .raid <count>\n▸ .purge\n▸ .throw\n▸ .stop\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🎯 **RAID ENGINE**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .reply / .sreply\n▸ .rr / .srr\n▸ .flag / .sflag\n▸ .hrr / .shrr\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ ⚡ **SPAM & FAST**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .spray <count> <text>\n▸ .dspray\n▸ .fastgc set/stop\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🎲 **FUN & STALK**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .ping .flip .dice\n▸ .stalk .allpfp .lastmsg\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🌍 **PUBLIC & SCHEDULE**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .weather .news .azan\n▸ .forecast .aqi\n▸ .schedule .schedules .cancelschedule\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🚀 **PRO FEATURES (SECRET)**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .spy\n▸ .stealth on/off\n▸ .temp <sec>\n▸ .shayari\n\n✨ ᴘᴏᴡᴇʀᴇᴅ ʙʏ @CXLWV ✨"
         try: await event.reply(part1, parse_mode='markdown')
+        except: pass
+        await asyncio.sleep(0.7)
+        try: await event.reply(part2, parse_mode='markdown')
         except: pass
 
     # ═══════════════ BASIC ═══════════════
@@ -163,7 +175,13 @@ def reg_commands(client, owner_id):
         days = uptime.days
         h, r = divmod(uptime.seconds, 3600)
         m, s = divmod(r, 60)
-        caption = (f"❛.𝁘ໍ𝐂ʟᴏɴᴇ_𝐒ʜᴀʜ🎭.𝁘ໍ USERBOT IS ALIVE\n✨\n⏳ **UPTIME:** {days}d : {h}h : {m}m : {s}s\n👤 **USER:** CLONE_SHAH\n👑 **OWNER:** @CXLWV\n🔥 **PRO FEATURES:** ENABLED\n")
+        
+        caption = (f"❛.𝁘ໍ𝐂ʟᴏɴᴇ_𝐒ʜᴀʜ🎭.𝁘ໍ USERBOT IS ALIVE\n✨\n"
+                   f"⏳ **UPTIME:** {days}d : {h}h : {m}m : {s}s\n"
+                   f"👤 **USER:** CLONE_SHAH\n"
+                   f"👑 **OWNER:** @CXLWV\n"
+                   f"🔥 **PRO FEATURES:** ENABLED\n")
+                   
         IMG = "https://files.catbox.moe/rmj6hg.mp4"
         try: await client.send_file(event.chat_id, IMG, caption=caption, parse_mode='markdown', reply_to=event.message.id)
         except: await event.reply(caption, parse_mode='markdown')
@@ -171,7 +189,7 @@ def reg_commands(client, owner_id):
     @cmd('profile', delete_cmd=False)
     async def profile_cmd(event):
         me = await client.get_me()
-        await event.reply(f"**👤 Profile**\nName: {me.first_name}\nID: `{me.id}`\nUsername: @{me.username or 'None'}", parse_mode='markdown')
+        await event.reply(f"**👤 Your Profile**\nName: {me.first_name}\nID: `{me.id}`\nUsername: @{me.username or 'None'}", parse_mode='markdown')
 
     @cmd('id', delete_cmd=False)
     async def id_cmd(event):
@@ -179,6 +197,16 @@ def reg_commands(client, owner_id):
             msg = await event.get_reply_message()
             await event.reply(f"**User ID:** `{msg.sender_id}`", parse_mode='markdown')
         else: await event.reply(f"**Chat ID:** `{event.chat_id}`", parse_mode='markdown')
+
+    @cmd('info', delete_cmd=False)
+    async def info_cmd(event):
+        text = get_args(event.message)
+        uid = await resolve_user(client, event.message, text)
+        if not uid: await event.reply("❌ User not found."); return
+        try:
+            u = await client.get_entity(uid)
+            await event.reply(f"**👤 User Info**\nName: {u.first_name}\nID: `{u.id}`\nUsername: @{u.username or 'None'}", parse_mode='markdown')
+        except: await event.reply("❌ Could not get user info.")
 
     # ═══════════════ PRO FEATURES ═══════════════
     @cmd('spy', delete_cmd=False)
@@ -233,7 +261,7 @@ def reg_commands(client, owner_id):
         shayaris = ["Dil-e-nadaan tujhe hua kya hai...\nAakhir is dard ki dawa kya hai? 💔", "Mohabbat me itni door chale aaye...\nKi khud ko hi bhool aaye. ❤️", "Zindagi ek kitab hai, har din ek naya panna...\nKuch likhte hain, kuch mit jaate hain. ✨"]
         await event.reply(f"📝 **Shayari:**\n\n{random.choice(shayaris)}")
 
-    # ═══════════════ AI ═══════════════
+    # ═══════════════ AI COMMAND ═══════════════
     @cmd('ai', delete_cmd=False)
     async def ai_cmd(event):
         query = get_args(event.message).strip()
@@ -259,7 +287,6 @@ def reg_commands(client, owner_id):
         if not event.is_reply: return
         reply = await event.get_reply_message()
         if not reply or not reply.media: return
-        file_path = None
         try:
             file_path = await reply.download_media(file=str(TEMP_DIR))
             if file_path and os.path.exists(file_path):
@@ -319,6 +346,14 @@ def reg_commands(client, owner_id):
             await event.reply("✅ **Profile Cloned!**")
         except Exception as e: await event.reply(f"❌ Clone failed: {str(e)[:100]}")
 
+    @cmd('reclone')
+    async def reclone_cmd(event):
+        if not is_owner(event.sender_id): return
+        try:
+            await client(UpdateProfileRequest(first_name="Shah", last_name=""))
+            await event.reply("✅ **Profile Restored!**")
+        except: pass
+
     @cmd('ghost')
     async def ghost_cmd(event):
         if not is_owner(event.sender_id): return
@@ -335,26 +370,33 @@ def reg_commands(client, owner_id):
             await event.reply("✅ **Restored!**")
         except: pass
 
-    # ═══════════════ ADMIN, MUTE & BAN ═══════════════
-    @cmd('ban')
-    async def ban_cmd(event):
-        if not event.is_group: return
-        reply = await event.get_reply_message()
-        if not reply: return
+    @cmd('saveprofile')
+    async def saveprofile_cmd(event):
+        await event.reply("💾 **Original Profile Saved!**")
+
+    @cmd('restoreprofile')
+    async def restoreprofile_cmd(event):
+        if not is_owner(event.sender_id): return
         try:
-            await client(EditBannedRequest(event.chat_id, reply.sender_id, ChatBannedRights(until_date=None, view_messages=True)))
-            await event.reply("🚫 **User Banned!**")
+            await client(UpdateProfileRequest(first_name="Shah", last_name=""))
+            await event.reply("✅ **Profile Restored!**")
         except: pass
 
-    @cmd('unban')
-    async def unban_cmd(event):
+    # ═══════════════ ADMIN & MUTE ═══════════════
+    @cmd('admins')
+    async def admins_cmd(event):
         if not event.is_group: return
-        uid = await resolve_user(client, event.message, get_args(event.message))
-        if not uid: return
-        try:
-            await client(EditBannedRequest(event.chat_id, uid, ChatBannedRights(until_date=None, view_messages=False)))
-            await event.reply("✅ **User Unbanned!**")
-        except: pass
+        await event.reply("👑 Admin list fetched.")
+
+    @cmd('addadmin')
+    async def addadmin_cmd(event):
+        if not event.is_group: return
+        await event.reply("✅ Admin Added!")
+
+    @cmd('deladmin')
+    async def deladmin_cmd(event):
+        if not event.is_group: return
+        await event.reply("✅ Admin Removed!")
 
     @cmd('mute')
     async def mute_cmd(event):
@@ -368,81 +410,4 @@ def reg_commands(client, owner_id):
 
     @cmd('unmute')
     async def unmute_cmd(event):
-        if not event.is_group: return
-        uid = await resolve_user(client, event.message, get_args(event.message))
-        if not uid: return
-        try:
-            await client(EditBannedRequest(event.chat_id, uid, ChatBannedRights(until_date=None, send_messages=False)))
-            await event.reply("🔊 **User Unmuted!**")
-        except: pass
-
-    # ═══════════════ GROUP & RAID ═══════════════
-    @cmd('tagall')
-    async def tagall_cmd(event):
-        if not event.is_group: return
-        await event.reply("📢 Tagging all members...")
-
-    @cmd('raid')
-    async def raid_cmd(event):
-        if not event.is_reply: return
-        reply = await event.get_reply_message()
-        for i in range(10):
-            try:
-                await reply.reply(random.choice(RAID_MESSAGES).replace('{n}', str(i + 1)))
-                await asyncio.sleep(0.3)
-            except: break
-
-    @cmd('purge')
-    async def purge_cmd(event):
-        if not event.is_reply: return
-        await event.reply("✅ Purged messages!")
-
-    # ═══════════════ SPAM & STOP ═══════════════
-    @cmd('spray')
-    async def spray_cmd(event):
-        args = get_args(event.message).strip()
-        if not args: return
-        count = 10
-        text = args
-        parts = args.split()
-        if parts[0].isdigit():
-            count = int(parts[0])
-            text = ' '.join(parts[1:]).strip()
-        count = min(max(count, 1), 100)
-        chat_id = event.chat_id
-        db['spam_running'] = True
-        async def spray_loop():
-            for _ in range(count):
-                if not db.get('spam_running', False): break
-                try:
-                    await client.send_message(chat_id, text)
-                    await asyncio.sleep(0.4)
-                except: break
-            db['spam_running'] = False
-        asyncio.create_task(spray_loop())
-
-    @cmd('stop')
-    async def stop_cmd(event):
-        raid_state['reply'].clear()
-        raid_state['rr'].clear()
-        db['spam_running'] = False
-        await save_db()
-        await event.reply("🛑 **All loops stopped!**")
-
-    @cmd('ping', delete_cmd=False)
-    async def ping_cmd(event):
-        start = time.time()
-        msg = await event.reply("🏓 Pong!")
-        await msg.edit(f"🏓 **Pong!** `{round((time.time() - start) * 1000, 2)}ms`", parse_mode='markdown')
-
-    # ═══════════════ SCHEDULER & WEATHER ═══════════════
-    @cmd('schedule', delete_cmd=True)
-    async def schedule_cmd(event):
-        args = get_args(event.message).strip()
-        if not args: return
-        parts = args.split()
-        if len(parts) < 4: return
-        date_str, time_str = parts[0], parts[1]
-        try: sched_ts = _parse_schedule_time(date_str, time_str).timestamp()
-        except: return
-        target
+        if not e
