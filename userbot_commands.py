@@ -153,7 +153,7 @@ def reg_commands(client, owner_id):
                     await event.reply(f"❌ Error: {str(e)[:200]}")
             return handler
         return wrapper
-       @cmd('help', delete_cmd=False)
+        @cmd('help', delete_cmd=False)
 async def help_cmd(event):
     part1 = "⚙️ **CLONE_SHAH MENU (1/2)** ⚙️\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🔹 **BASIC COMMANDS**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .help\n▸ .alive\n▸ .profile\n▸ .id\n▸ .info\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🤖 **AI ASSISTANT**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .ai <q>\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 📥 **DOWNLOADER**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .save\n▸ .saveaudio\n▸ .savemsg\n▸ .savechannel\n▸ .play <song>\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 👤 **PROFILE SYSTEM**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .clone @user\n▸ .reclone\n▸ .cloneall @user\n▸ .recloneall\n▸ .ghost / .unghost\n▸ .ghostall / .unghostall\n▸ .saveprofile / .restoreprofile\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🛡️ **ADMIN COMMANDS**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .admins\n▸ .addadmin\n▸ .deladmin\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🔇 **MUTE & RESTRICT**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .mute / .unmute\n▸ .gmute / .gunmute\n▸ .lock / .unlock\n▸ .ban / .unban\n\n✨ ᴘᴏᴡᴇʀᴇᴅ ʙʏ @CXLWV ✨"
     part2 = "⚙️ **CLONE_SHAH MENU (2/2)** ⚙️\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 👥 **GROUP MOD**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .tagall <text>\n▸ .tagall2 <text>\n▸ .stoptag\n▸ .raid <count>\n▸ .purge\n▸ .throw\n▸ .stop\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🎯 **RAID ENGINE**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .reply / .sreply\n▸ .rr / .srr\n▸ .flag / .sflag\n▸ .hrr / .shrr\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ ⚡ **SPAM & FAST**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .spray <count> <text>\n▸ .dspray\n▸ .fastgc set/stop\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🎲 **FUN & STALK**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .ping .flip .dice\n▸ .stalk .allpfp .lastmsg\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🎵 **MUSIC & IMAGE**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .lyrics .songinfo .spotify .trending\n▸ .ringtone .playlist\n▸ .t2i .sticker .toimg .blur .img2pdf\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ ✨ **ANIMATIONS & FANCY**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .animate .spinner .loveu .loves\n▸ .matrix .hearts .countdown .wave\n▸ .hi .hey .text .banner (100+ fancy)\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🌍 **PUBLIC & SCHEDULE**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .weather .news .azan\n▸ .forecast .aqi\n▸ .schedule .schedules .cancelschedule\n\n✨ ᴘᴏᴡᴇʀᴇᴅ ʙʏ @CXLWV ✨"
@@ -258,7 +258,7 @@ async def savemsg_cmd(event):
     reply = await event.get_reply_message()
     if reply and reply.text:
         await client.send_message("me", f"📝 **Saved Text:**\n\n{reply.text}")
-@cmd('clone')
+        @cmd('clone')
 async def clone_cmd(event):
     if not is_owner(event.sender_id): return
     target_id = await resolve_user(client, event.message, get_args(event.message))
@@ -427,4 +427,3 @@ async def weather_cmd(event):
                     data = await resp.json()
                     await event.reply(f"**Weather: {data['name']}**\n🌡️ {data['main']['temp']}°C\n📝 {data['weather'][0]['description'].title()}")
     except: pass
-        
