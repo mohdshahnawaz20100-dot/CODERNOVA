@@ -1,14 +1,17 @@
-async def health_server():
-    async def handle(request):
-        return web.Response(text="✅ Codernova Multi-User Userbot Running")
-    app = web.Application()
-    app.router.add_get('/', handle)
-    app.router.add_get('/health', handle)
-    port = int(os.getenv('PORT', 10000))
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', port)
-    await site.start()
-    log.info(f"✅ Health on port {port}")
-    # Ye line add karo taaki server kabhi band na ho
-    await asyncio.Event().wait()
+import os
+from flask import Flask
+import threading
+
+app = Flask(__name__)
+
+@app.route('/')
+def health():
+    return "Bot is running!"
+
+def run_server():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
+
+if __name__ == "__main__":
+    threading.Thread(target=run_server, daemon=True).start()
+    8951234836:AAH2P6ZBcCBSMbPoy1l4dvIu7FeQP-pYCDo
