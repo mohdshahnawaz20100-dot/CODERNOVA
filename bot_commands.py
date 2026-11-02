@@ -47,7 +47,7 @@ def reg_commands(client, owner_id):
         "owner_id": owner_id, "admins": [], "ghost_data": {}, "ghost_on": False,
         "ghostall_data": {}, "ghostall_on": False,
         "auto_react_dm_enabled": False, "auto_react_group_enabled": False,
-        "auto_react_emojis": ['🥰','😭','😂','🤗','🆒','😇','🤩','😎','🫡','🤝','👍','❤️','🔥','💯','👀','😁','🤨','🕊','🎉','👏','⚡️','🤷','👌','🧑‍💻','🏆','✍️','😴','🤔'],
+        "auto_react_emojis": ['🥰','😭','😂','🤗','🆒','😇','🤩','😎','🫡','🤝','👍','❤️','❤️‍🔥','🔥','💯','👀','😁','🤨','🕊','🎉','👏','⚡️','🤷','👌','🧑‍💻','🏆','✍️','😴','🤔'],
         "auto_reply": {"enabled": False, "mode": "always", "text": "Owner is busy...", "replied_users": [], "approved_users": []},
         "ai_reply": {"enabled": False, "approved_users": []},
         "pmguard": {"enabled": False, "warn_limit": 5, "custom_enabled": False, "custom_limit": None},
@@ -158,8 +158,8 @@ def reg_commands(client, owner_id):
     # ═══════════════ HELP ═══════════════
     @cmd('help', delete_cmd=False)
     async def help_cmd(event):
-        part1 = "⚙️ **CLONE_SHAH MENU (1/2)** ⚙️\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🔹 **BASIC COMMANDS**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .help\n▸ .alive\n▸ .profile\n▸ .id\n▸ .info\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🤖 **AI ASSISTANT**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .ai <q>\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 📥 **DOWNLOADER**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .save\n▸ .saveaudio\n▸ .savemsg\n▸ .savechannel\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 👤 **PROFILE SYSTEM**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .clone @user\n▸ .reclone\n▸ .cloneall @user\n▸ .recloneall\n▸ .ghost / .unghost\n▸ .ghostall / .unghostall\n▸ .saveprofile / .restoreprofile\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🛡️ **ADMIN COMMANDS**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .admins\n▸ .addadmin\n▸ .deladmin\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🔇 **MUTE & RESTRICT**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .mute / .unmute\n▸ .gmute / .gunmute\n▸ .lock / .unlock\n▸ .ban / .unban\n\n✨ ᴘᴏᴡᴇʀᴇᴅ ʙʏ @CXLWV ✨"
-        part2 = "⚙️ **CLONE_SHAH MENU (2/2)** ⚙️\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 👥 **GROUP MOD**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .tagall <text>\n▸ .tagall2 <text>\n▸ .stoptag\n▸ .raid <count>\n▸ .purge\n▸ .throw\n▸ .stop\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🎯 **RAID ENGINE**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .reply / .sreply\n▸ .rr / .srr\n▸ .flag / .sflag\n▸ .hrr / .shrr\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ ⚡ **SPAM & FAST**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .spray <count> <text>\n▸ .dspray\n▸ .fastgc set/stop\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🎲 **FUN & STALK**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .ping .flip .dice\n▸ .stalk .allpfp .lastmsg\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🌍 **PUBLIC & SCHEDULE**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .weather .news .azan\n▸ .forecast .aqi\n▸ .schedule .schedules .cancelschedule\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🚀 **PRO FEATURES (SECRET)**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .spy\n▸ .stealth on/off\n▸ .temp <sec>\n▸ .shayari\n\n✨ ᴘᴏᴡᴇʀᴇᴅ ʙʏ @CXLWV ✨"
+        part1 = "⚙️ **CLONE_SHAH MENU** ⚙️\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🔹 **BASIC COMMANDS**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .help\n▸ .alive\n▸ .profile\n▸ .id\n▸ .info\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🤖 **AI ASSISTANT**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .ai <q>\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 📥 **DOWNLOADER**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .save\n▸ .saveaudio\n▸ .savemsg\n▸ .savechannel\n▸ .play <song>\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 👤 **PROFILE SYSTEM**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .clone @user\n▸ .reclone\n▸ .cloneall @user\n▸ .recloneall\n▸ .ghost / .unghost\n▸ .ghostall / .unghostall\n▸ .saveprofile / .restoreprofile\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🛡️ **ADMIN COMMANDS**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .admins\n▸ .addadmin\n▸ .deladmin\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🔇 **MUTE & RESTRICT**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .mute / .unmute\n▸ .gmute / .gunmute\n▸ .lock / .unlock\n▸ .ban / .unban\n\n✨ ᴘᴏᴡᴇʀᴇᴅ ʙʏ @CXLWV ✨"
+        part2 = "⚙️ **CLONE_SHAH MENU (2/2)** ⚙️\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 👥 **GROUP MOD**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .tagall <text>\n▸ .tagall2 <text>\n▸ .stoptag\n▸ .raid <count>\n▸ .purge\n▸ .throw\n▸ .stop\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🎯 **RAID ENGINE**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .reply / .sreply\n▸ .rr / .srr\n▸ .flag / .sflag\n▸ .hrr / .shrr\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ ⚡ **SPAM & FAST**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .spray <count> <text>\n▸ .dspray\n▸ .fastgc set/stop\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🎲 **FUN & STALK**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .ping .flip .dice\n▸ .stalk .allpfp .lastmsg\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🎵 **MUSIC & IMAGE**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .lyrics .songinfo .spotify .trending\n▸ .ringtone .playlist\n▸ .t2i .sticker .toimg .blur .img2pdf\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ ✨ **ANIMATIONS & FANCY**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .animate .spinner .loveu .loves\n▸ .matrix .hearts .countdown .wave\n▸ .hi .hey .text .banner (100+ fancy)\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🌍 **PUBLIC & SCHEDULE**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .weather .news .azan\n▸ .forecast .aqi\n▸ .schedule .schedules .cancelschedule\n\n╭━━━━━━━━━━━━━━━━━━━━━━╮\n┃ 🚀 **PRO FEATURES (SECRET)**\n╰━━━━━━━━━━━━━━━━━━━━━━╯\n▸ .spy\n▸ .stealth on/off\n▸ .temp <sec>\n▸ .shayari\n\n✨ ᴘᴏᴡᴇʀᴇᴅ ʙʏ @CXLWV ✨"
         try: await event.reply(part1, parse_mode='markdown')
         except: pass
         await asyncio.sleep(0.7)
@@ -370,18 +370,6 @@ def reg_commands(client, owner_id):
             await event.reply("✅ **Restored!**")
         except: pass
 
-    @cmd('saveprofile')
-    async def saveprofile_cmd(event):
-        await event.reply("💾 **Original Profile Saved!**")
-
-    @cmd('restoreprofile')
-    async def restoreprofile_cmd(event):
-        if not is_owner(event.sender_id): return
-        try:
-            await client(UpdateProfileRequest(first_name="Shah", last_name=""))
-            await event.reply("✅ **Profile Restored!**")
-        except: pass
-
     # ═══════════════ ADMIN & MUTE ═══════════════
     @cmd('admins')
     async def admins_cmd(event):
@@ -410,4 +398,5 @@ def reg_commands(client, owner_id):
 
     @cmd('unmute')
     async def unmute_cmd(event):
-        if not event.is_
+        if not event.is_group: return
+        
