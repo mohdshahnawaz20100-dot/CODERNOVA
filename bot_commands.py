@@ -1,111 +1,480 @@
+import os
+import re
 import time
+import random
 import logging
 import asyncio
+import shutil
 from datetime import datetime
-from telethon import events
-from config import OWNER_ID, CLEANUP_DAYS
+from urllib.parse import quote as url_quote
+import aiohttp
+from telethon import events, functions
+from telethon.tl.types import (
+    ChatBannedRights, ChannelParticipantsAdmins, ChatAdminRights,
+    MessageMediaWebPage, MessageMediaUnsupported, ReactionEmoji,
+)
+from telethon.errors import FloodWaitError
+from telethon.tl.functions.account import UpdateProfileRequest
+from telethon.tl.functions.contacts import BlockRequest, UnblockRequest
+from telethon.tl.functions.messages import (
+    EditChatDefaultBannedRightsRequest, EditChatTitleRequest, SendReactionRequest,
+)
+from telethon.tl.functions.channels import (
+    EditBannedRequest, EditAdminRequest, EditTitleRequest,
+)
+from telethon.tl.functions.photos import DeletePhotosRequest
+
+from config import (
+    TEMP_DIR, DATA_DIR, OWNER_ID, GROQ_API_KEY, WEATHER_API_KEY,
+    NEWS_API_KEY, IST_TZ,
+)
 from database import (
-    all_users_db, users_db, blocked_users, command_usage_db,
-    block_user_db, unblock_user_db, get_user, save_user,
-    command_blocked_db, users_col, all_users_col, cmd_usage_col,
-    cmd_blocked_col, track_start,
+    get_user_data, save_user_data, user_data_cache, user_data_col,
+    log_command_usage, sched_col,
+)
+from helpers import get_ghost_image_path
+from userbot_manager import user_bots, raid_state
+from scheduler import (
+    _parse_schedule_time, _fmt_ist_12h, _fmt_ist_full, _scheduler_runner,
 )
 
-log = logging.getLogger("CN_BOTCMD")
-broadcast_history = []
+log = logging.getLogger("CN_UBCMD")
 
+def reg_commands(client, owner_id):
+    db = get_user_data(owner_id)
+    defaults = {
+        "owner_id": owner_id, "admins": [], "ghost_data": {}, "ghost_on": False,
+        "ghostall_data": {}, "ghostall_on": False,
+        "auto_react_dm_enabled": False, "auto_react_group_enabled": False,
+        "auto_react_emojis": ['🥰','😭','😂','🤗','🆒','😇','🤩','😎','🫡','🤝','👍','❤️','❤️‍🔥','🔥','💯','👀','😁','🤨','🕊','🎉','👏','⚡️','🤷','👌','🧑‍💻','🏆','✍️','😴','🤔'],
+        "auto_reply": {
+            "enabled": False, "mode": "always",
+            "text": "The owner is busy with some personal work at the moment😌Please wait until they are back online🥀",
+            "replied_users": [], "approved_users": [],
+        },
+        "ai_reply": {"enabled": False, "approved_users": []},
+        "pmguard": {"enabled": False, "warn_limit": 5, "custom_enabled": False, "custom_limit": None},
+        "pm_warnings": {}, "approved": [], "blacklist": [],
+        "muted": {}, "gmuted": {}, "blocklist": [], "locked_groups": [],
+        "clone_data": {}, "cloneall_data": {}, "saved_profile": {},
+        "reply_raid": {}, "rr_raid": {}, "flag_raid": {},
+        "heart_raid": {}, "spam_running": False, "fast_gc_data": {},
+        "start_time": datetime.now().isoformat(),
+    }
+    for k, v in defaults.items():
+        if k not in db:
+            db[k] = v
+    db["auto_react_emojis"] = defaults["auto_react_emojis"]
+    asyncio.create_task(save_user_data(owner_id, db))
 
-def register_bot_commands(bot):
-    @bot.on(events.NewMessage(pattern='/start'))
-    async def start_h(event):
-        uid = event.sender_id
-        if str(uid) in blocked_users:
-            return
-        u = get_user(uid)
+    async def save_db():
         try:
-            s = await event.get_sender()
-            name = ((s.first_name or "") + (" " + s.last_name if getattr(s, 'last_name', None) else "")).strip() or "Unknown"
-            await track_start(uid, name, s.username or "None")
+            data = dict(db)
+            for key in ["reply_raid", "rr_raid", "flag_raid", "heart_raid"]:
+                if key in data and isinstance(data[key], dict):
+                    new_dict = {}
+                    for k, v in data[key].items():
+                        new_dict[str(k)] = list(v) if isinstance(v, set) else v
+                    data[key] = new_dict
+            await save_user_data(owner_id, data)
+            user_data_cache[str(owner_id)] = data
+        except Exception as e:
+            log.error(f"save_db: {e}")
+
+    async def refresh_db():
+        try:
+            fresh = await user_data_col.find_one({"_id": str(owner_id)})
+            if fresh:
+                fresh.pop("_id", None)
+                for k, v in fresh.items():
+                    db[k] = v
+                db["auto_react_emojis"] = defaults["auto_react_emojis"]
+                user_data_cache[str(owner_id)] = dict(db)
         except Exception:
             pass
-            
-        if u["logged_in"]:
-            caption = "✅ **ᴀʟʀᴇᴀᴅʏ ʟᴏɢɢᴇᴅ ɪɴ!**\n\n`/help` — ʜᴇʟᴘ ᴍᴇɴᴜ\n`/status` — ʟᴏɢɪɴ sᴛᴀᴛᴜs\n`/logout` — ʟᴏɢᴏᴜᴛ\n\nApna userbot use karne ke liye kisi bhi chat me `.help` bhejo."
-        else:
-            caption = "🎉 ᴡᴇʟᴄᴏᴍᴇ ᴛᴏ ᴄʟᴏɴᴇx ᴜsᴇʀʙᴏᴛ 🎉\n\n🛑 ʟᴏɢɪɴ sᴛᴇᴘs:\n🔷 sᴇɴᴅ /ʟᴏɢɪɴ\n🔷 sᴇɴᴅ ᴘʜᴏɴᴇ ɴᴜᴍʙᴇʀ\n🔷 sᴇɴᴅ ᴏᴛᴘ (sᴘᴀᴄᴇ ᴋᴇ sᴀᴀᴛʜ)\n\n🔐 ᴛʏᴘᴇ: /ʟᴏɢɪɴ"
-        await event.reply(caption, parse_mode='markdown')
 
-    @bot.on(events.NewMessage(pattern='/help'))
-    async def help_h(event):
-        uid = event.sender_id
-        if str(uid) in blocked_users:
-            return
-        base = "🛑 **Bot Commands**\n\n🔹 **Login:**\n• `/start`\n• `/login`\n• `/logout`\n• `/status`\n\n🔹 **Userbot:**\nLogin ke baad kisi bhi chat me `.alive` bhejo\n\n"
-        if uid == OWNER_ID:
-            await event.reply(base + "👑 **Owner:**\n• `/users`\n• `/live`\n• `/broadcast`\n• `/stats`\n• `/block`\n• `/unblock`\n• `/resetall`", parse_mode='markdown')
-        else:
-            await event.reply(base, parse_mode='markdown')
+    async def get_fresh_data(key):
+        await refresh_db()
+        return db.get(key)
 
-    @bot.on(events.NewMessage(pattern='/status'))
-    async def status_h(event):
-        u = get_user(event.sender_id)
-        if u["logged_in"]:
-            await event.reply(f"✅ **Logged In**\n👤 `{u.get('tg_name','N/A')}`\n🆔 `{u.get('tg_id','N/A')}`", parse_mode='markdown')
-        else:
-            await event.reply("❌ Not logged in. `/login`")
+    def get_args(msg):
+        t = msg.text or ''
+        for m in re.finditer(r'\.\w+\s*(.*)', t):
+            return m.group(1).strip()
+        return ''
 
-    @bot.on(events.NewMessage(pattern='/users'))
-    async def users_h(event):
-        if event.sender_id != OWNER_ID: return
-        if not all_users_db:
-            await event.reply("📭 Koi user nahi.")
-            return
-        logged = sum(1 for u in users_db.values() if u.get("logged_in"))
-        t = f"👥 **Total: {len(all_users_db)}**\n✅ **Logged In: {logged}**\n🚫 **Blocked: {len(blocked_users)}**\n\n"
-        for i, (uid, info) in enumerate(list(all_users_db.items())[:50], 1):
-            st = "🟢" if uid in users_db and users_db[uid].get("logged_in") else "🔴"
-            if uid in blocked_users: st = "🚫"
-            t += f"{i}. {st} `{info.get('name','Unknown')}`\n   🆔 `{uid}`\n\n"
-        await event.reply(t, parse_mode='markdown')
+    def is_owner(uid):
+        return uid == db.get("owner_id", owner_id)
 
-    @bot.on(events.NewMessage(pattern='/stats'))
-    async def stats_h(event):
-        if event.sender_id != OWNER_ID: return
-        from userbot_manager import user_bots
-        await event.reply(f"📊 **Stats**\n👥 Total: `{len(all_users_db)}`\n✅ Logged: `{len(users_db)}`\n🟢 Active: `{len(user_bots)}`\n🚫 Blocked: `{len(blocked_users)}`", parse_mode='markdown')
+    async def resolve_user(client, msg, text):
+        if msg.is_reply:
+            return (await msg.get_reply_message()).sender_id
+        if text:
+            m = re.search(r'@(\w+)', text)
+            if m:
+                try:
+                    u = await client.get_entity(m.group(1))
+                    return u.id
+                except Exception:
+                    return None
+            try:
+                u = await client.get_entity(int(text))
+                return u.id
+            except Exception:
+                return None
+        return None
 
-    @bot.on(events.NewMessage(pattern=r'^/block(\s+.*)?$'))
-    async def block_h(event):
-        if event.sender_id != OWNER_ID: return
-        from userbot_manager import user_bots
-        args = (event.text or "").replace("/block", "").strip()
-        if not args and not event.is_reply:
-            await event.reply("❌ `/block <user_id>`")
-            return
-        target_id = None
+    def user_link(uid):
+        return f"[User](tg://user?id={uid})"
+
+    async def reply_to_target(event, text):
+        if event.reply_to_msg_id:
+            try:
+                await client.send_message(event.chat_id, text, reply_to=event.reply_to_msg_id)
+                return
+            except Exception:
+                pass
+        await event.reply(text)
+
+    async def send_anim(event, text, parse_mode=None):
+        if event.reply_to_msg_id:
+            return await client.send_message(event.chat_id, text, reply_to=event.reply_to_msg_id, parse_mode=parse_mode)
+        return await event.reply(text, parse_mode=parse_mode)
+
+    async def raid_loop(event, target_id, raid_key, message_func, delay=1):
+        chat_id = str(event.chat_id)
+        raid_dict = raid_state[raid_key]
+        if chat_id not in raid_dict:
+            raid_dict[chat_id] = set()
+        raid_dict[chat_id].add(target_id)
+        while target_id in raid_dict.get(chat_id, set()):
+            try:
+                await message_func()
+                await asyncio.sleep(delay)
+            except Exception:
+                break
+
+    RAID_MESSAGES = [
+        "🚀 Raid #{n}!\n🔥 Attack mode on, brace yourself!",
+        "💥 Spam #{n}!\n⚡ We can't be stopped now!",
+        "🔥 Attack #{n}!\n💫 Unstoppable raid force incoming!",
+        "⚡ Raid #{n}\n🚀 Here we go again, hold tight!",
+        "🌀 Flood #{n}\n💥 Breaking through everything!",
+    ]
+    REPLY_MESSAGES = [
+        "💬 Spam reply!\n🔥 Raid mode is active!",
+        "🤖 Bot attack!\n⚡ Beware the incoming storm!",
+    ]
+
+    def cmd(pattern, owner_only=False, delete_cmd=True):
+        def wrapper(func):
+            @client.on(events.NewMessage(pattern=rf'^\.{pattern}(\s.*)?$'))
+            async def handler(event):
+                if event.sender_id != db.get("owner_id", owner_id): return
+                if owner_only and not is_owner(event.sender_id): return
+                asyncio.create_task(log_command_usage(event.sender_id, pattern))
+                if delete_cmd:
+                    try: await event.delete()
+                    except Exception: pass
+                try:
+                    await refresh_db()
+                    await func(event)
+                    await save_db()
+                except FloodWaitError as e:
+                    await asyncio.sleep(e.seconds)
+                except Exception as e:
+                    log.error(f"Cmd .{pattern} error: {e}")
+                    await event.reply(f"❌ Error: {str(e)[:200]}")
+            return handler
+        return wrapper
+
+    # ═══════════════ HELP ═══════════════
+    @cmd('help', delete_cmd=False)
+    async def help_cmd(event):
+        part1 = (
+            "⚙️ **CLONE_SHAH MENU (1/2)** ⚙️\n"
+            "╭━━━━━━━━━━━━━━━━━━━━━━╮\n"
+            "┃ 🔹 **BASIC COMMANDS**\n"
+            "╰━━━━━━━━━━━━━━━━━━━━━━╯\n"
+            "▸ .help — Show menu\n"
+            "▸ .alive — Check status\n"
+            "▸ .profile — Your profile\n"
+            "▸ .id — Get ID\n"
+            "▸ .info — Get user info\n\n"
+            "╭━━━━━━━━━━━━━━━━━━━━━━╮\n"
+            "┃ 🤖 **AI ASSISTANT**\n"
+            "╰━━━━━━━━━━━━━━━━━━━━━━╯\n"
+            "▸ .ai <question> — Ask AI\n\n"
+            "╭━━━━━━━━━━━━━━━━━━━━━━╮\n"
+            "┃ 📥 **DOWNLOADER**\n"
+            "╰━━━━━━━━━━━━━━━━━━━━━━╯\n"
+            "▸ .save — Save media\n"
+            "▸ .saveaudio — Extract audio\n"
+            "▸ .savemsg — Save text\n\n"
+            "╭━━━━━━━━━━━━━━━━━━━━━━╮\n"
+            "┃ 👤 **PROFILE & CLONE**\n"
+            "╰━━━━━━━━━━━━━━━━━━━━━━╯\n"
+            "▸ .clone @user\n"
+            "▸ .reclone\n"
+            "▸ .cloneall @user\n"
+            "▸ .recloneall\n"
+            "▸ .ghost / .unghost\n"
+            "▸ .ghostall / .unghostall\n"
+            "▸ .saveprofile / .restoreprofile\n\n"
+            "╭━━━━━━━━━━━━━━━━━━━━━━╮\n"
+            "┃ 🛡️ **ADMIN & MUTE**\n"
+            "╰━━━━━━━━━━━━━━━━━━━━━━╯\n"
+            "▸ .admins — Group admins\n"
+            "▸ .addadmin — Add admin\n"
+            "▸ .deladmin — Remove admin\n"
+            "▸ .mute / .unmute\n"
+            "▸ .gmute / .gunmute\n"
+            "▸ .lock / .unlock\n"
+            "▸ .ban / .unban\n\n"
+            "✨ ᴘᴏᴡᴇʀᴇᴅ ʙʏ @CXLWV ✨"
+        )
+        part2 = (
+            "⚙️ **CLONE_SHAH MENU (2/2)** ⚙️\n"
+            "╭━━━━━━━━━━━━━━━━━━━━━━╮\n"
+            "┃ 👥 **GROUP MOD**\n"
+            "╰━━━━━━━━━━━━━━━━━━━━━━╯\n"
+            "▸ .tagall <text>\n"
+            "▸ .tagall2 <text>\n"
+            "▸ .stoptag\n"
+            "▸ .raid <count>\n"
+            "▸ .purge\n"
+            "▸ .throw\n\n"
+            "╭━━━━━━━━━━━━━━━━━━━━━━╮\n"
+            "┃ 🎯 **RAID ENGINE**\n"
+            "╰━━━━━━━━━━━━━━━━━━━━━━╯\n"
+            "▸ .reply / .sreply\n"
+            "▸ .rr / .srr\n"
+            "▸ .flag / .sflag\n"
+            "▸ .hrr / .shrr\n\n"
+            "╭━━━━━━━━━━━━━━━━━━━━━━╮\n"
+            "┃ ⚡ **SPAM & FAST**\n"
+            "╰━━━━━━━━━━━━━━━━━━━━━━╯\n"
+            "▸ .spray <count> <text>\n"
+            "▸ .dspray\n"
+            "▸ .fastgc set <text>\n"
+            "▸ .fastgc stop\n\n"
+            "╭━━━━━━━━━━━━━━━━━━━━━━╮\n"
+            "┃ 🕵️ **STALK TOOLS**\n"
+            "╰━━━━━━━━━━━━━━━━━━━━━━╯\n"
+            "▸ .stalk\n"
+            "▸ .allpfp\n"
+            "▸ .lastmsg <n>\n\n"
+            "╭━━━━━━━━━━━━━━━━━━━━━━╮\n"
+            "┃ 🎲 **FUN & MUSIC**\n"
+            "╰━━━━━━━━━━━━━━━━━━━━━━╯\n"
+            "▸ .ping .flip .dice\n"
+            "▸ .lyrics <song>\n"
+            "▸ .songinfo <song>\n"
+            "▸ .spotify <query>\n\n"
+            "╭━━━━━━━━━━━━━━━━━━━━━━╮\n"
+            "┃ ✨ **ANIMATIONS**\n"
+            "╰━━━━━━━━━━━━━━━━━━━━━━╯\n"
+            "▸ .animate .spinner\n"
+            "▸ .loveu .loves\n"
+            "▸ .matrix .hearts\n"
+            "▸ .countdown .wave\n\n"
+            "╭━━━━━━━━━━━━━━━━━━━━━━╮\n"
+            "┃ ⏰ **SCHEDULER**\n"
+            "╰━━━━━━━━━━━━━━━━━━━━━━╯\n"
+            "▸ .schedule <date> <time>\n"
+            "▸ .schedules\n"
+            "▸ .cancelschedule <id>\n\n"
+            "╭━━━━━━━━━━━━━━━━━━━━━━╮\n"
+            "┃ 🌍 **PUBLIC FEATURES**\n"
+            "╰━━━━━━━━━━━━━━━━━━━━━━╯\n"
+            "▸ .weather <city>\n"
+            "▸ .news\n"
+            "▸ .azan <city>\n"
+            "▸ .t2i <prompt>\n\n"
+            "✨ ᴘᴏᴡᴇʀᴇᴅ ʙʏ @CXLWV ✨"
+        )
+        try: await event.reply(part1, parse_mode='markdown')
+        except Exception: pass
+        await asyncio.sleep(0.5)
+        try: await event.reply(part2, parse_mode='markdown')
+        except Exception: pass
+
+    # ═══════════════ BASIC ═══════════════
+    @cmd('alive', delete_cmd=False)
+    async def alive_cmd(event):
+        start = db.get("start_time", datetime.now().isoformat())
+        try: uptime = datetime.now() - datetime.fromisoformat(start)
+        except Exception: uptime = datetime.now() - datetime.now()
+        days = uptime.days
+        h, r = divmod(uptime.seconds, 3600)
+        m, s = divmod(r, 60)
+        me = await client.get_me()
+        
+        # APKA NAAM AUR BOT KA NAAM YAHAN SET HAI
+        caption = (f"❛.𝁘ໍ𝐂ʟᴏɴᴇ_𝐒ʜᴀʜ🎭.𝁘ໍ USERBOT IS ALIVE\n✨\n"
+                   f"⏳ **UPTIME:** {days}d : {h}h : {m}m : {s}s\n"
+                   f"👤 **USER:** {me.first_name or 'User'}\n"
+                   f"👑 **OWNER:** @CXLWV\n")
+        IMG = "https://files.catbox.moe/rmj6hg.mp4"
+        try: await client.send_file(event.chat_id, IMG, caption=caption, parse_mode='markdown', reply_to=event.message.id)
+        except Exception: await event.reply(caption, parse_mode='markdown')
+
+    @cmd('profile', delete_cmd=False)
+    async def profile_cmd(event):
+        me = await client.get_me()
+        await event.reply(f"**👤 Your Profile**\nName: {me.first_name}\nID: `{me.id}`\nUsername: @{me.username or 'None'}", parse_mode='markdown')
+
+    @cmd('id', delete_cmd=False)
+    async def id_cmd(event):
         if event.is_reply:
-            target_id = (await event.get_reply_message()).sender_id
+            msg = await event.get_reply_message()
+            await event.reply(f"**User ID:** `{msg.sender_id}`", parse_mode='markdown')
         else:
-            try: target_id = int(args.split()[0])
-            except: await event.reply("❌ Invalid ID"); return
-        
-        target_id = str(target_id)
-        if target_id in user_bots:
-            try: await user_bots[target_id].disconnect()
-            except: pass
-            del user_bots[target_id]
-            
-        await block_user_db(target_id)
-        await event.reply(f"🚫 **User Blocked!**\n🆔 `{target_id}`", parse_mode='markdown')
+            await event.reply(f"**Chat ID:** `{event.chat_id}`", parse_mode='markdown')
 
-    @bot.on(events.NewMessage(pattern=r'^/unblock(\s+.*)?$'))
-    async def unblock_h(event):
-        if event.sender_id != OWNER_ID: return
-        args = (event.text or "").replace("/unblock", "").strip()
+    # ═══════════════ AI COMMAND ═══════════════
+    @cmd('ai', delete_cmd=False)
+    async def ai_cmd(event):
+        query = get_args(event.message).strip()
+        reply_msg = await event.get_reply_message() if event.is_reply else None
+        reply_text = ""
+        if reply_msg:
+            reply_text = (reply_msg.text or "").strip()
+            if not reply_text and hasattr(reply_msg, 'caption'): reply_text = (reply_msg.caption or "").strip()
+        if not query and not reply_text:
+            await event.reply("❌ **Usage:** `.ai <your question>`\nExample: `.ai What is Python?`"); return
+        if not GROQ_API_KEY:
+            await event.reply("❌ Groq API key not set."); return
+        try:
+            final_prompt = query
+            if reply_text and query: final_prompt = f"Message: {reply_text}\n\nQuestion: {query}"
+            elif reply_text and not query: final_prompt = f"Explain this:\n\n{reply_text}"
+            
+            url = "https://api.groq.com/openai/v1/chat/completions"
+            headers = {"Content-Type": "application/json", "Authorization": f"Bearer {GROQ_API_KEY}"}
+            payload = {"model": "openai/gpt-oss-120b", "messages": [{"role": "system", "content": "You are helpful. Reply in plain text only."}, {"role": "user", "content": final_prompt}], "max_tokens": 8000, "temperature": 0.3}
+            timeout = aiohttp.ClientTimeout(total=120)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(url, headers=headers, json=payload) as resp:
+                    if resp.status != 200:
+                        error_text = await resp.text()
+                        await event.reply(f"❌ **Groq API Error:** `{resp.status}`\n`{error_text[:200]}`"); return
+                    data = await resp.json()
+            answer = data["choices"][0]["message"]["content"]
+            answer = re.sub(r'[*#>_`~]', '', answer).strip()
+            reply_target = event.reply_to_msg_id if event.is_reply else event.message.id
+            chunks = [answer[i:i+3900] for i in range(0, len(answer), 3900)]
+            for i, chunk in enumerate(chunks):
+                if i == 0: await client.send_message(event.chat_id, chunk, reply_to=reply_target)
+                else: await client.send_message(event.chat_id, chunk)
+                if i < len(chunks) - 1: await asyncio.sleep(0.6)
+        except Exception as e:
+            await event.reply(f"❌ **Error:** `{str(e)[:200]}`")
+
+    # ═══════════════ SAVE & CLONE ═══════════════
+    @cmd('save', delete_cmd=False)
+    async def save_cmd(event):
+        if not is_owner(event.sender_id): return
+        try: await event.delete()
+        except Exception: pass
+        if not event.is_reply: return
+        reply = await event.get_reply_message()
+        if not reply or not reply.media: return
+        try:
+            file_path = await reply.download_media(file=str(TEMP_DIR))
+            if file_path:
+                await client.send_file("me", file_path, caption="✅ **Saved!**", parse_mode='markdown')
+                os.remove(file_path)
+        except Exception as e: log.error(f"Save error: {e}")
+
+    @cmd('clone')
+    async def clone_cmd(event):
+        if not is_owner(event.sender_id): return
+        text = get_args(event.message)
+        target_id = await resolve_user(client, event.message, text)
+        if not target_id: await event.reply("❌ Target not found."); return
+        try:
+            target = await client.get_entity(target_id)
+            await client(UpdateProfileRequest(first_name=getattr(target, 'first_name', '') or '', last_name=getattr(target, 'last_name', '') or ''))
+            await event.reply("✅ **Profile Cloned!**")
+        except Exception as e: await event.reply(f"❌ Clone failed: {str(e)[:100]}")
+
+    @cmd('ghost')
+    async def ghost_cmd(event):
+        if not is_owner(event.sender_id): return
+        try:
+            await client(UpdateProfileRequest(first_name="Deleted", last_name="Account"))
+            await event.reply("👻 **Ghost Mode Activated!**")
+        except Exception as e: await event.reply(f"❌ {str(e)[:100]}")
+
+    # ═══════════════ MUTE & ADMIN ═══════════════
+    @cmd('ban')
+    async def ban_cmd(event):
+        if not event.is_group: return
+        uid = await resolve_user(client, event.message, get_args(event.message))
+        if not uid: return
+        try:
+            await client(EditBannedRequest(event.chat_id, uid, ChatBannedRights(until_date=None, view_messages=True)))
+            await event.reply("🚫 **User Banned!**")
+        except Exception as e: await event.reply(f"❌ {str(e)[:150]}")
+
+    # ═══════════════ SPAM & STOP ═══════════════
+    @cmd('spray')
+    async def spray_cmd(event):
+        args = get_args(event.message).strip()
+        if not args: return
+        count = 10
+        text = args
+        parts = args.split()
+        if parts[0].isdigit():
+            count = int(parts[0])
+            text = ' '.join(parts[1:]).strip()
+        count = min(max(count, 1), 100)
+        chat_id = event.chat_id
+        db['spam_running'] = True
+        async def spray_loop():
+            for _ in range(count):
+                if not db.get('spam_running', False): break
+                try:
+                    await client.send_message(chat_id, text)
+                    await asyncio.sleep(0.4)
+                except Exception: break
+            db['spam_running'] = False
+        asyncio.create_task(spray_loop())
+
+    @cmd('stop')
+    async def stop_cmd(event):
+        raid_state['reply'].clear()
+        raid_state['rr'].clear()
+        raid_state['flag'].clear()
+        raid_state['hrr'].clear()
+        db['spam_running'] = False
+        db['fast_gc_data'].clear()
+        db['tagall_running'] = False
+        await save_db()
+        await event.reply("🛑 **All loops stopped!**")
+
+    # ═══════════════ SCHEDULER & WEATHER ═══════════════
+    @cmd('schedule', delete_cmd=True)
+    async def schedule_cmd(event):
+        args = get_args(event.message).strip()
         if not args:
-            await event.reply("❌ `/unblock <user_id>`"); return
-        try: target_id = str(int(args.split()[0]))
-        except: await event.reply("❌ Invalid ID"); return
-        
-        await unblock_user_db(target_id)
-        await event.reply(f"✅ **User Unblocked!**\n🆔 `{target_id}`", parse_mode='markdown')
+            await event.reply("**Format:** `.schedule YYYY-MM-DD HH:MM <target> <msg>`"); return
+        parts = args.split()
+        if len(parts) < 4: return
+        date_str, time_str = parts[0], parts[1]
+        try: sched_ts = _parse_schedule_time(date_str, time_str).timestamp()
+        except Exception as e: await event.reply(f"❌ **Invalid date** `{e}`"); return
+        target_str = parts[2]
+        msg_text = " ".join(parts[3:])
+        target_id = None
+        if target_str.startswith('@'):
+            try: target_id = (await client.get_entity(target_str)).id
+            except: pass
+        else:
+            try: target_id = int(target_str)
+            except: pass
+        if not target_id: return
+        if sched_col is None: return
+        from bson import ObjectId
+        doc = {"_id": str(ObjectId()), "owner_id": owner_id, "target_id": target_id, "text": msg_text, "reply_to_msg_id": None, "comment_to": None, "scheduled_ts": sched_ts, "scheduled_str": _fmt_ist_full(sched_ts), "scheduled_short": _fmt_ist_12h(sched_ts), "chat_id": event.chat_id, "created_at"
