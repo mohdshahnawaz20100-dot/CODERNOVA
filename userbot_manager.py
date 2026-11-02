@@ -1,4 +1,4 @@
-pending_clients = {}import random
+
 import logging
 import asyncio
 from telethon import TelegramClient
