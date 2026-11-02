@@ -4,39 +4,19 @@ import time
 import random
 import logging
 import asyncio
-import shutil
 from datetime import datetime
-from urllib.parse import quote as url_quote
 import aiohttp
 from telethon import events, functions
-from telethon.tl.types import (
-    ChatBannedRights, ChannelParticipantsAdmins, ChatAdminRights,
-    MessageMediaWebPage, MessageMediaUnsupported, ReactionEmoji,
-)
+from telethon.tl.types import ChatBannedRights, ReactionEmoji
 from telethon.errors import FloodWaitError
 from telethon.tl.functions.account import UpdateProfileRequest
-from telethon.tl.functions.contacts import BlockRequest, UnblockRequest
-from telethon.tl.functions.messages import (
-    EditChatDefaultBannedRightsRequest, EditChatTitleRequest, SendReactionRequest,
-)
-from telethon.tl.functions.channels import (
-    EditBannedRequest, EditAdminRequest, EditTitleRequest,
-)
-from telethon.tl.functions.photos import DeletePhotosRequest
+from telethon.tl.functions.messages import SendReactionRequest
+from telethon.tl.functions.channels import EditBannedRequest
 
-from config import (
-    TEMP_DIR, DATA_DIR, OWNER_ID, GROQ_API_KEY, WEATHER_API_KEY,
-    NEWS_API_KEY, IST_TZ,
-)
-from database import (
-    get_user_data, save_user_data, user_data_cache, user_data_col,
-    log_command_usage, sched_col,
-)
-from helpers import get_ghost_image_path
-from userbot_manager import user_bots, raid_state
-from scheduler import (
-    _parse_schedule_time, _fmt_ist_12h, _fmt_ist_full, _scheduler_runner,
-)
+from config import TEMP_DIR, GROQ_API_KEY, WEATHER_API_KEY
+from database import get_user_data, save_user_data, user_data_cache, user_data_col, log_command_usage, sched_col
+from userbot_manager import raid_state
+from scheduler import _parse_schedule_time, _fmt_ist_12h, _fmt_ist_full, _scheduler_runner
 
 log = logging.getLogger("CN_UBCMD")
 
@@ -44,38 +24,21 @@ def reg_commands(client, owner_id):
     db = get_user_data(owner_id)
     defaults = {
         "owner_id": owner_id, "admins": [], "ghost_data": {}, "ghost_on": False,
-        "ghostall_data": {}, "ghostall_on": False,
         "auto_react_dm_enabled": False, "auto_react_group_enabled": False,
-        "auto_react_emojis": ['🥰','😭','😂','🤗','🆒','😇','🤩','😎','🫡','🤝','👍','❤️','❤️‍🔥','🔥','💯','👀','😁','🤨','🕊','🎉','👏','⚡️','🤷','👌','🧑‍💻','🏆','✍️','😴','🤔'],
-        "auto_reply": {
-            "enabled": False, "mode": "always",
-            "text": "The owner is busy with some personal work at the moment😌Please wait until they are back online🥀",
-            "replied_users": [], "approved_users": [],
-        },
-        "ai_reply": {"enabled": False, "approved_users": []},
-        "pmguard": {"enabled": False, "warn_limit": 5, "custom_enabled": False, "custom_limit": None},
-        "pm_warnings": {}, "approved": [], "blacklist": [],
-        "muted": {}, "gmuted": {}, "blocklist": [], "locked_groups": [],
-        "clone_data": {}, "cloneall_data": {}, "saved_profile": {},
-        "reply_raid": {}, "rr_raid": {}, "flag_raid": {},
-        "heart_raid": {}, "spam_running": False, "fast_gc_data": {},
+        "auto_react_emojis": ['🥰','😭','😂','🤗','🆒','😇','🤩','😎','🫡','🤝','👍','❤️','🔥','💯','👀','😁','🤨','🕊','🎉','👏','⚡️','🤷','👌','🧑‍💻','🏆','✍️','😴','🤔'],
+        "auto_reply": {"enabled": False, "text": "The owner is busy with some personal work at the moment😌Please wait until they are back online🥀"},
+        "ai_reply": {"enabled": False},
+        "spam_running": False,
         "start_time": datetime.now().isoformat(),
     }
     for k, v in defaults.items():
         if k not in db:
             db[k] = v
-    db["auto_react_emojis"] = defaults["auto_react_emojis"]
     asyncio.create_task(save_user_data(owner_id, db))
 
     async def save_db():
         try:
             data = dict(db)
-            for key in ["reply_raid", "rr_raid", "flag_raid", "heart_raid"]:
-                if key in data and isinstance(data[key], dict):
-                    new_dict = {}
-                    for k, v in data[key].items():
-                        new_dict[str(k)] = list(v) if isinstance(v, set) else v
-                    data[key] = new_dict
             await save_user_data(owner_id, data)
             user_data_cache[str(owner_id)] = data
         except Exception as e:
@@ -88,14 +51,9 @@ def reg_commands(client, owner_id):
                 fresh.pop("_id", None)
                 for k, v in fresh.items():
                     db[k] = v
-                db["auto_react_emojis"] = defaults["auto_react_emojis"]
                 user_data_cache[str(owner_id)] = dict(db)
         except Exception:
             pass
-
-    async def get_fresh_data(key):
-        await refresh_db()
-        return db.get(key)
 
     def get_args(msg):
         t = msg.text or ''
@@ -124,48 +82,6 @@ def reg_commands(client, owner_id):
                 return None
         return None
 
-    def user_link(uid):
-        return f"[User](tg://user?id={uid})"
-
-    async def reply_to_target(event, text):
-        if event.reply_to_msg_id:
-            try:
-                await client.send_message(event.chat_id, text, reply_to=event.reply_to_msg_id)
-                return
-            except Exception:
-                pass
-        await event.reply(text)
-
-    async def send_anim(event, text, parse_mode=None):
-        if event.reply_to_msg_id:
-            return await client.send_message(event.chat_id, text, reply_to=event.reply_to_msg_id, parse_mode=parse_mode)
-        return await event.reply(text, parse_mode=parse_mode)
-
-    async def raid_loop(event, target_id, raid_key, message_func, delay=1):
-        chat_id = str(event.chat_id)
-        raid_dict = raid_state[raid_key]
-        if chat_id not in raid_dict:
-            raid_dict[chat_id] = set()
-        raid_dict[chat_id].add(target_id)
-        while target_id in raid_dict.get(chat_id, set()):
-            try:
-                await message_func()
-                await asyncio.sleep(delay)
-            except Exception:
-                break
-
-    RAID_MESSAGES = [
-        "🚀 Raid #{n}!\n🔥 Attack mode on, brace yourself!",
-        "💥 Spam #{n}!\n⚡ We can't be stopped now!",
-        "🔥 Attack #{n}!\n💫 Unstoppable raid force incoming!",
-        "⚡ Raid #{n}\n🚀 Here we go again, hold tight!",
-        "🌀 Flood #{n}\n💥 Breaking through everything!",
-    ]
-    REPLY_MESSAGES = [
-        "💬 Spam reply!\n🔥 Raid mode is active!",
-        "🤖 Bot attack!\n⚡ Beware the incoming storm!",
-    ]
-
     def cmd(pattern, owner_only=False, delete_cmd=True):
         def wrapper(func):
             @client.on(events.NewMessage(pattern=rf'^\.{pattern}(\s.*)?$'))
@@ -192,111 +108,23 @@ def reg_commands(client, owner_id):
     @cmd('help', delete_cmd=False)
     async def help_cmd(event):
         part1 = (
-            "⚙️ **CLONE_SHAH MENU (1/2)** ⚙️\n"
-            "╭━━━━━━━━━━━━━━━━━━━━━━╮\n"
-            "┃ 🔹 **BASIC COMMANDS**\n"
-            "╰━━━━━━━━━━━━━━━━━━━━━━╯\n"
+            "⚙️ **CLONE_SHAH MENU** ⚙️\n\n"
             "▸ .help — Show menu\n"
             "▸ .alive — Check status\n"
             "▸ .profile — Your profile\n"
             "▸ .id — Get ID\n"
-            "▸ .info — Get user info\n\n"
-            "╭━━━━━━━━━━━━━━━━━━━━━━╮\n"
-            "┃ 🤖 **AI ASSISTANT**\n"
-            "╰━━━━━━━━━━━━━━━━━━━━━━╯\n"
-            "▸ .ai <question> — Ask AI\n\n"
-            "╭━━━━━━━━━━━━━━━━━━━━━━╮\n"
-            "┃ 📥 **DOWNLOADER**\n"
-            "╰━━━━━━━━━━━━━━━━━━━━━━╯\n"
+            "▸ .ai <question> — Ask AI\n"
             "▸ .save — Save media\n"
-            "▸ .saveaudio — Extract audio\n"
-            "▸ .savemsg — Save text\n\n"
-            "╭━━━━━━━━━━━━━━━━━━━━━━╮\n"
-            "┃ 👤 **PROFILE & CLONE**\n"
-            "╰━━━━━━━━━━━━━━━━━━━━━━╯\n"
             "▸ .clone @user\n"
-            "▸ .reclone\n"
-            "▸ .cloneall @user\n"
-            "▸ .recloneall\n"
             "▸ .ghost / .unghost\n"
-            "▸ .ghostall / .unghostall\n"
-            "▸ .saveprofile / .restoreprofile\n\n"
-            "╭━━━━━━━━━━━━━━━━━━━━━━╮\n"
-            "┃ 🛡️ **ADMIN & MUTE**\n"
-            "╰━━━━━━━━━━━━━━━━━━━━━━╯\n"
-            "▸ .admins — Group admins\n"
-            "▸ .addadmin — Add admin\n"
-            "▸ .deladmin — Remove admin\n"
-            "▸ .mute / .unmute\n"
-            "▸ .gmute / .gunmute\n"
-            "▸ .lock / .unlock\n"
-            "▸ .ban / .unban\n\n"
-            "✨ ᴘᴏᴡᴇʀᴇᴅ ʙʏ @CXLWV ✨"
-        )
-        part2 = (
-            "⚙️ **CLONE_SHAH MENU (2/2)** ⚙️\n"
-            "╭━━━━━━━━━━━━━━━━━━━━━━╮\n"
-            "┃ 👥 **GROUP MOD**\n"
-            "╰━━━━━━━━━━━━━━━━━━━━━━╯\n"
-            "▸ .tagall <text>\n"
-            "▸ .tagall2 <text>\n"
-            "▸ .stoptag\n"
-            "▸ .raid <count>\n"
-            "▸ .purge\n"
-            "▸ .throw\n\n"
-            "╭━━━━━━━━━━━━━━━━━━━━━━╮\n"
-            "┃ 🎯 **RAID ENGINE**\n"
-            "╰━━━━━━━━━━━━━━━━━━━━━━╯\n"
-            "▸ .reply / .sreply\n"
-            "▸ .rr / .srr\n"
-            "▸ .flag / .sflag\n"
-            "▸ .hrr / .shrr\n\n"
-            "╭━━━━━━━━━━━━━━━━━━━━━━╮\n"
-            "┃ ⚡ **SPAM & FAST**\n"
-            "╰━━━━━━━━━━━━━━━━━━━━━━╯\n"
+            "▸ .ban\n"
             "▸ .spray <count> <text>\n"
-            "▸ .dspray\n"
-            "▸ .fastgc set <text>\n"
-            "▸ .fastgc stop\n\n"
-            "╭━━━━━━━━━━━━━━━━━━━━━━╮\n"
-            "┃ 🕵️ **STALK TOOLS**\n"
-            "╰━━━━━━━━━━━━━━━━━━━━━━╯\n"
-            "▸ .stalk\n"
-            "▸ .allpfp\n"
-            "▸ .lastmsg <n>\n\n"
-            "╭━━━━━━━━━━━━━━━━━━━━━━╮\n"
-            "┃ 🎲 **FUN & MUSIC**\n"
-            "╰━━━━━━━━━━━━━━━━━━━━━━╯\n"
-            "▸ .ping .flip .dice\n"
-            "▸ .lyrics <song>\n"
-            "▸ .songinfo <song>\n"
-            "▸ .spotify <query>\n\n"
-            "╭━━━━━━━━━━━━━━━━━━━━━━╮\n"
-            "┃ ✨ **ANIMATIONS**\n"
-            "╰━━━━━━━━━━━━━━━━━━━━━━╯\n"
-            "▸ .animate .spinner\n"
-            "▸ .loveu .loves\n"
-            "▸ .matrix .hearts\n"
-            "▸ .countdown .wave\n\n"
-            "╭━━━━━━━━━━━━━━━━━━━━━━╮\n"
-            "┃ ⏰ **SCHEDULER**\n"
-            "╰━━━━━━━━━━━━━━━━━━━━━━╯\n"
-            "▸ .schedule <date> <time>\n"
-            "▸ .schedules\n"
-            "▸ .cancelschedule <id>\n\n"
-            "╭━━━━━━━━━━━━━━━━━━━━━━╮\n"
-            "┃ 🌍 **PUBLIC FEATURES**\n"
-            "╰━━━━━━━━━━━━━━━━━━━━━━╯\n"
-            "▸ .weather <city>\n"
-            "▸ .news\n"
-            "▸ .azan <city>\n"
-            "▸ .t2i <prompt>\n\n"
+            "▸ .stop\n"
+            "▸ .schedule\n"
+            "▸ .weather <city>\n\n"
             "✨ ᴘᴏᴡᴇʀᴇᴅ ʙʏ @CXLWV ✨"
         )
         try: await event.reply(part1, parse_mode='markdown')
-        except Exception: pass
-        await asyncio.sleep(0.5)
-        try: await event.reply(part2, parse_mode='markdown')
         except Exception: pass
 
     # ═══════════════ BASIC ═══════════════
@@ -310,7 +138,6 @@ def reg_commands(client, owner_id):
         m, s = divmod(r, 60)
         me = await client.get_me()
         
-        # APKA NAAM AUR BOT KA NAAM YAHAN SET HAI
         caption = (f"❛.𝁘ໍ𝐂ʟᴏɴᴇ_𝐒ʜᴀʜ🎭.𝁘ໍ USERBOT IS ALIVE\n✨\n"
                    f"⏳ **UPTIME:** {days}d : {h}h : {m}m : {s}s\n"
                    f"👤 **USER:** {me.first_name or 'User'}\n"
@@ -454,7 +281,7 @@ def reg_commands(client, owner_id):
         await save_db()
         await event.reply("🛑 **All loops stopped!**")
 
-    # ═══════════════ SCHEDULER & WEATHER ═══════════════
+    # ═══════════════ SCHEDULER ═══════════════
     @cmd('schedule', delete_cmd=True)
     async def schedule_cmd(event):
         args = get_args(event.message).strip()
@@ -465,16 +292,63 @@ def reg_commands(client, owner_id):
         date_str, time_str = parts[0], parts[1]
         try: sched_ts = _parse_schedule_time(date_str, time_str).timestamp()
         except Exception as e: await event.reply(f"❌ **Invalid date** `{e}`"); return
+        
         target_str = parts[2]
         msg_text = " ".join(parts[3:])
         target_id = None
+        
         if target_str.startswith('@'):
             try: target_id = (await client.get_entity(target_str)).id
             except: pass
         else:
             try: target_id = int(target_str)
             except: pass
+            
         if not target_id: return
         if sched_col is None: return
+        
         from bson import ObjectId
-        doc = {"_id": str(ObjectId()), "owner_id": owner_id, "target_id": target_id, "text": msg_text, "reply_to_msg_id": None, "comment_to": None, "scheduled_ts": sched_ts, "scheduled_str": _fmt_ist_full(sched_ts), "scheduled_short": _fmt_ist_12h(sched_ts), "chat_id": event.chat_id, "created_at"
+        
+        doc = {
+            "_id": str(ObjectId()),
+            "owner_id": owner_id,
+            "target_id": target_id,
+            "text": msg_text,
+            "reply_to_msg_id": None,
+            "comment_to": None,
+            "scheduled_ts": sched_ts,
+            "scheduled_str": _fmt_ist_full(sched_ts),
+            "scheduled_short": _fmt_ist_12h(sched_ts),
+            "chat_id": event.chat_id,
+            "created_at": time.time(),
+            "status": "pending"
+        }
+        await sched_col.insert_one(doc)
+        asyncio.create_task(_scheduler_runner(client, doc))
+        await event.reply(f"✅ **SCHEDULED!**\nID: `{doc['_id'][:8]}`\nWhen: `{doc['scheduled_short']}`")
+
+    # ═══════════════ WEATHER ═══════════════
+    @cmd('weather', delete_cmd=False)
+    async def weather_cmd(event):
+        city = get_args(event.message)
+        if not city: return
+        try:
+            url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={WEATHER_API_KEY}&units=metric"
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        await event.reply(f"**Weather: {data['name']}**\n🌡️ Temp: {data['main']['temp']}°C\n📝 {data['weather'][0]['description'].title()}")
+        except Exception: pass
+
+    # ═══════════════ EVENT HANDLERS ═══════════════
+    @client.on(events.NewMessage(func=lambda e: e.is_private and not e.out))
+    async def auto_reply_handler(event):
+        try:
+            uid = event.sender_id
+            if uid == db.get('owner_id', owner_id): return
+            ar = db.get('auto_reply', {})
+            if ar.get('enabled', False):
+                await asyncio.sleep(0.5)
+                await event.reply(ar.get('text', 'Owner is busy.'))
+        except Exception: pass
